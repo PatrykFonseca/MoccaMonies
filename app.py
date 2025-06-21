@@ -5,7 +5,7 @@ from supabase import create_client, Client
 # Configure suas variáveis de ambiente (anon key para operações de usuário):
 # SUPABASE_URL e SUPABASE_ANON_KEY
 supabase_url: str = os.getenv("SUPABASE_URL")
-supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY")
+supabase_anon_key: str = os.getenv("SUPABASE_KEY")
 
 if not supabase_url or not supabase_anon_key:
     raise RuntimeError("Defina SUPABASE_URL e SUPABASE_ANON_KEY no ambiente")
