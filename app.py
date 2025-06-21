@@ -99,21 +99,35 @@ elif menu == "Lançamentos":
     st.header("Lançamentos")
     trans = get_transactions()
     df = pd.DataFrame(trans)
-    if not df.empty and 'categorias' in df.columns:
+    if not df.empty:
         df['categoria'] = df['categorias'].apply(lambda x: x['nome'] if x else None)
-    st.dataframe(df[['id', 'tipo', 'valor', 'descricao', 'data', 'categoria']])
+        df['tipo_categoria'] = df['categorias'].apply(lambda x: x['tipo'] if x else None)
+        df['conta'] = df['contas'].apply(lambda x: x['conta_nome'] if x else None)
+    st.dataframe(df[[
+        'id', 'valor', 'descricao', 'data', 'categoria',
+        'tipo_categoria', 'conta', 'user_id', 'criado_em'
+    ]])
+
     with st.form("frm_lanc", clear_on_submit=True):
-        tipo = st.selectbox("Tipo", ["Receita", "Despesa"])
         valor = st.number_input("Valor", value=0.0)
         descricao = st.text_input("Descrição")
         data = st.date_input("Data", value=datetime.today()).strftime('%Y-%m-%d')
+        # Seleção de conta
+        contas = get_accounts()
+        conta_opts = {c['nome']: c['id'] for c in contas}
+        conta_sel = st.selectbox("Conta", list(conta_opts.keys()))
+        # Seleção de categoria
         cats = get_categories()
-        opt = {c['nome']: c['id'] for c in cats}
-        cat_sel = st.selectbox("Categoria", list(opt.keys()))
+        cat_opts = {c['nome']: c['id'] for c in cats}
+        cat_sel = st.selectbox("Categoria", list(cat_opts.keys()))
         if st.form_submit_button("Adicionar lançamento"):
-            add_transaction(tipo, valor, descricao, data, opt[cat_sel])
+            user_id = st.session_state.user.get('id')
+            add_transaction(
+                valor, descricao, data,
+                cat_opts[cat_sel], conta_opts[conta_sel], user_id
+            )
             st.success("Lançamento adicionado com sucesso!")
-            st.rerun()
+            st.experimental_rerun()
 
 elif menu == "Dívidas":
     st.header("Dívidas")
