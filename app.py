@@ -23,7 +23,7 @@ def login():
     email = st.text_input("Email")
     senha = st.text_input("Senha", type="password")
     if st.button("Entrar"):
-        result = supabase.auth.sign_in({'email': email, 'password': senha})
+        result = supabase.auth.sign_in_with_password({'email': email, 'password': senha})
         if result.user:
             st.session_state.user = result.user
             st.session_state.access_token = result.session.access_token
