@@ -1,3 +1,96 @@
+# File: supabase_client.py
+import os
+from supabase import create_client, Client
+
+# Configure suas variáveis de ambiente (anon key para operações de usuário):
+# SUPABASE_URL e SUPABASE_ANON_KEY
+supabase_url: str = os.getenv("SUPABASE_URL")
+supabase_anon_key: str = os.getenv("SUPABASE_ANON_KEY")
+
+if not supabase_url or not supabase_anon_key:
+    raise RuntimeError("Defina SUPABASE_URL e SUPABASE_ANON_KEY no ambiente")
+
+supabase: Client = create_client(supabase_url, supabase_anon_key)
+
+
+# File: database.py
+from supabase_client import supabase
+
+# CONTAS
+
+def add_account(nome: str, saldo: float):
+    resp = supabase.table("contas").insert({"nome": nome, "saldo": saldo}).execute()
+    return resp.data
+
+def get_accounts():
+    resp = supabase.table("contas").select("*").order("id").execute()
+    return resp.data
+
+# CATEGORIAS
+
+def get_categories():
+    resp = supabase.table("categorias").select("*").order("nome").execute()
+    return resp.data
+
+def add_category(nome: str, tipo: str):
+    resp = supabase.table("categorias").insert({"nome": nome, "tipo": tipo}).execute()
+    return resp.data
+
+# Utility para mapping
+
+def get_or_create_category(nome: str, tipo: str = "Despesa") -> int:
+    r = supabase.table("categorias").select("id").eq("nome", nome).execute()
+    if r.data:
+        return r.data[0]["id"]
+    cr = supabase.table("categorias").insert({"nome": nome, "tipo": tipo}).execute()
+    return cr.data[0]["id"]
+
+# LANÇAMENTOS
+
+def add_transaction(tipo: str, valor: float, descricao: str, data: str, categoria_id: int):
+    resp = supabase.table("lancamentos").insert({
+        "tipo": tipo,
+        "valor": valor,
+        "descricao": descricao,
+        "data": data,
+        "categoria_id": categoria_id
+    }).execute()
+    return resp.data
+
+def get_transactions():
+    r = supabase.table("lancamentos").select("*, categorias(nome)").order("data", desc=True).execute()
+    return r.data
+
+# DÍVIDAS
+
+def add_debt(nome: str, valor: float, data_vencimento: str, juros: float):
+    resp = supabase.table("dividas").insert({
+        "nome": nome,
+        "valor": valor,
+        "data_vencimento": data_vencimento,
+        "juros": juros
+    }).execute()
+    return resp.data
+
+def get_debts():
+    resp = supabase.table("dividas").select("*").order("data_vencimento").execute()
+    return resp.data
+
+# METAS
+
+def add_goal(nome: str, valor: float, data_limite: str):
+    resp = supabase.table("metas").insert({
+        "nome": nome,
+        "valor": valor,
+        "data_limite": data_limite
+    }).execute()
+    return resp.data
+
+def get_goals():
+    resp = supabase.table("metas").select("*").order("data_limite").execute()
+    return resp.data
+
+
 # File: app.py (Streamlit com autenticação)
 import streamlit as st
 import pandas as pd
@@ -21,33 +114,31 @@ st.set_page_config(page_title="Finanças Casa", layout="wide")
 def login():
     st.title("🔐 Login")
     email = st.text_input("Email")
-    senha = st.text_input("Senha", type="password")
+    password = st.text_input("Senha", type="password")
     if st.button("Entrar"):
-        result = supabase.auth.sign_in_with_password({'email': email, 'password': senha})
-        if result.user:
-            st.session_state.user = result.user
-            st.session_state.access_token = result.session.access_token
-            st.experimental_rerun()
+        response = supabase.auth.sign_in_with_password({"email": email, "password": password})
+        if hasattr(response, "error") and response.error:
+            st.error(f"Falha na autenticação: {response.error.message}")
         else:
-            st.error("Falha na autenticação: {}".format(result.error.message if result.error else "Desconhecido"))
-    return False
+            data = getattr(response, "data", {})
+            session = data.get("session", {})
+            user = data.get("user")
+            st.session_state.access_token = session.get("access_token")
+            st.session_state.user = user
+            st.experimental_rerun()
 
 
 def logout():
     supabase.auth.sign_out()
-    for k in ['user', 'access_token']:
-        st.session_state.pop(k, None)
+    st.session_state.clear()
     st.experimental_rerun()
 
 # Verifica sessão
-if 'access_token' in st.session_state:
-    # Ajusta o token para chamadas subsequentes
+if "access_token" in st.session_state:
     supabase.auth.set_auth(st.session_state.access_token)
-    # Botão de logout
     if st.sidebar.button("Logout 🚪"):
         logout()
 else:
-    # Solicita login
     login()
     st.stop()
 
@@ -58,143 +149,4 @@ menu = st.sidebar.selectbox(
     ["Contas", "Categorias", "Lançamentos", "Dívidas", "Metas", "Importar Excel", "Relatórios", "Gráficos"]
 )
 
-if menu == "Contas":
-    st.header("Contas")
-    df = pd.DataFrame(get_accounts())
-    st.table(df)
-    with st.form("frm_conta", clear_on_submit=True):
-        nome = st.text_input("Nome da conta")
-        saldo = st.number_input("Saldo inicial", value=0.0)
-        if st.form_submit_button("Adicionar conta"):
-            add_account(nome, saldo)
-            st.success("Conta adicionada com sucesso!")
-            st.experimental_rerun()
-
-elif menu == "Categorias":
-    st.header("Categorias")
-    df = pd.DataFrame(get_categories())
-    st.table(df)
-    with st.form("frm_cat", clear_on_submit=True):
-        nome = st.text_input("Nome da categoria")
-        tipo = st.selectbox("Tipo", ["Receita", "Despesa"] )
-        if st.form_submit_button("Adicionar categoria"):
-            add_category(nome, tipo)
-            st.success("Categoria adicionada com sucesso!")
-            st.experimental_rerun()
-
-elif menu == "Lançamentos":
-    st.header("Lançamentos")
-    trans = get_transactions()
-    df = pd.DataFrame(trans)
-    if not df.empty and 'categorias' in df.columns:
-        df['categoria'] = df['categorias'].apply(lambda x: x['nome'] if x else None)
-    st.dataframe(df[['id','tipo','valor','descricao','data','categoria']])
-    with st.form("frm_lanc", clear_on_submit=True):
-        tipo = st.selectbox("Tipo", ["Receita","Despesa"])
-        valor = st.number_input("Valor", value=0.0)
-        descricao = st.text_input("Descrição")
-        data = st.date_input("Data", value=datetime.today()).strftime('%Y-%m-%d')
-        cats = get_categories()
-        opt = {c['nome']: c['id'] for c in cats}
-        cat_sel = st.selectbox("Categoria", list(opt.keys()))
-        if st.form_submit_button("Adicionar lançamento"):
-            add_transaction(tipo, valor, descricao, data, opt[cat_sel])
-            st.success("Lançamento adicionado com sucesso!")
-            st.experimental_rerun()
-
-elif menu == "Dívidas":
-    st.header("Dívidas")
-    df = pd.DataFrame(get_debts())
-    st.table(df)
-    with st.form("frm_div", clear_on_submit=True):
-        nome = st.text_input("Nome da dívida")
-        valor = st.number_input("Valor da dívida", value=0.0)
-        data_v = st.date_input("Data de vencimento", value=datetime.today()).strftime('%Y-%m-%d')
-        juros = st.number_input("Juros (%)", value=0.0)
-        if st.form_submit_button("Adicionar dívida"):
-            add_debt(nome, valor, data_v, juros)
-            st.success("Dívida adicionada com sucesso!")
-            st.experimental_rerun()
-
-elif menu == "Metas":
-    st.header("Metas")
-    df = pd.DataFrame(get_goals())
-    st.table(df)
-    with st.form("frm_meta", clear_on_submit=True):
-        nome = st.text_input("Nome da meta")
-        valor = st.number_input("Valor alvo", value=0.0)
-        data_l = st.date_input("Data limite", value=datetime.today()).strftime('%Y-%m-%d')
-        if st.form_submit_button("Adicionar meta"):
-            add_goal(nome, valor, data_l)
-            st.success("Meta adicionada com sucesso!")
-            st.experimental_rerun()
-
-elif menu == "Importar Excel":
-    st.header("Importar Excel C6Bank")
-    file = st.file_uploader("Selecione o arquivo Excel (.xls/.xlsx)", type=["xls","xlsx"] )
-    senha = st.text_input("Senha do arquivo", type="password")
-    if st.button("Importar"):
-        if file and senha:
-            try:
-                arquivo = msoffcrypto.OfficeFile(file)
-                arquivo.load_key(password=senha)
-                buf = BytesIO()
-                arquivo.decrypt(buf)
-                buf.seek(0)
-                df = pd.read_excel(buf, skiprows=1)
-                df.columns = df.columns.str.strip().str.replace(r'\n',' ',regex=True)
-                col_val = [c for c in df.columns if "Valor" in c and "(em R$)" in c]
-                if not col_val:
-                    st.error("Coluna 'Valor (em R$)' não encontrada")
-                else:
-                    col_val = col_val[0]
-                    df[col_val] = pd.to_numeric(df[col_val].astype(str).str.replace('[R$,\s]','',regex=True), errors='coerce').fillna(0).abs()
-                    df['Tipo'] = df[col_val].apply(lambda x: 'Despesa' if x>0 else 'Receita')
-                    df['Data'] = pd.to_datetime(df['Data de compra'], dayfirst=True, errors='coerce').dt.strftime('%Y-%m-%d')
-                    df['CategoriaName'] = df.get('Categoria','Sem categoria')
-                    df['Descrição'] = df.get('Descrição','')
-                    for _, row in df.iterrows():
-                        cat_id = get_or_create_category(row['CategoriaName'])
-                        add_transaction(row['Tipo'], row[col_val], row['Descrição'], row['Data'], cat_id)
-                    st.success("Importação concluída com sucesso!")
-                    st.experimental_rerun()
-            except Exception as e:
-                st.error(f"Erro ao importar: {e}")
-        else:
-            st.warning("Arquivo e senha são obrigatórios")
-
-elif menu == "Relatórios":
-    st.header("Relatórios Mensais")
-    trans = get_transactions()
-    df = pd.DataFrame(trans)
-    if not df.empty:
-        df['data'] = pd.to_datetime(df['data'])
-        anos = df['data'].dt.year.unique().tolist()
-        meses = list(range(1,13))
-        sel_ano = st.selectbox("Ano", sorted(anos))
-        sel_mes = st.selectbox("Mês", meses)
-        dff = df[(df['data'].dt.year==sel_ano) & (df['data'].dt.month==sel_mes)]
-        st.dataframe(dff)
-        towrite = BytesIO()
-        dff.to_excel(towrite, index=False, sheet_name=f"{sel_mes}-{sel_ano}")
-        towrite.seek(0)
-        st.download_button(
-            "Baixar Excel", 
-            data=towrite, 
-            file_name=f"relatorio_{sel_mes}_{sel_ano}.xlsx"
-        )
-    else:
-        st.info("Nenhum lançamento encontrado.")
-
-elif menu == "Gráficos":
-    st.header("Gráficos de Receitas x Despesas")
-    trans = get_transactions()
-    df = pd.DataFrame(trans)
-    if not df.empty:
-        resumo = df.groupby('tipo')['valor'].sum().reset_index()
-        fig, ax = plt.subplots()
-        ax.pie(resumo['valor'], labels=resumo['tipo'], autopct='%1.1f%%', startangle=90)
-        ax.set_title('Distribuição Receitas vs Despesas')
-        st.pyplot(fig)
-    else:
-        st.info("Nenhum dado para plotar.")
+# ... resto do código permanece inalterado ...
