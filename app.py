@@ -24,27 +24,40 @@ def login():
     email = st.text_input("Email")
     password = st.text_input("Senha", type="password")
     if st.button("Entrar"):
-        response = supabase.auth.sign_in_with_password({
-            "email": email,
-            "password": password
-        })
-        if hasattr(response, "error") and response.error:
-            st.error(f"Falha na autenticação: {response.error.message}")
-        else:
-            data = getattr(response, "data", {})
-            session = data.get("session", {})
-            st.session_state.access_token = session.get("access_token")
-            st.session_state.user = data.get("user")
-            st.rerun()
+        try:
+            response = supabase.auth.sign_in_with_password({
+                "email": email,
+                "password": password
+            })
+            
+            if response.user and response.session:
+                st.session_state.access_token = response.session.access_token
+                st.session_state.refresh_token = response.session.refresh_token
+                st.session_state.user = response.user
+                st.success("Login realizado com sucesso!")
+                st.rerun()
+            else:
+                st.error("Credenciais inválidas")
+        except Exception as e:
+            st.error(f"Erro na autenticação: {str(e)}")
 
 def logout():
-    supabase.auth.sign_out()
+    try:
+        supabase.auth.sign_out()
+    except:
+        pass  # Ignore errors during sign out
     st.session_state.clear()
     st.rerun()
 
 # Verifica sessão
-if "access_token" in st.session_state:
-    supabase.auth.set_auth(st.session_state.access_token)
+if "access_token" in st.session_state and "user" in st.session_state:
+    # Set the session using the stored access token and user info
+    try:
+        supabase.auth.set_session(st.session_state.access_token, st.session_state.refresh_token)
+    except:
+        # Alternative method if set_session doesn't work
+        supabase.postgrest.auth(st.session_state.access_token)
+    
     if st.sidebar.button("Logout 🚪"):
         logout()
 else:
