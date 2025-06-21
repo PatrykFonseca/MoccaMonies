@@ -1,10 +1,11 @@
-# File: app.py (Streamlit)
+# File: app.py (Streamlit com autenticação)
 import streamlit as st
 import pandas as pd
 import matplotlib.pyplot as plt
 from datetime import datetime
 from io import BytesIO
 import msoffcrypto
+from supabase_client import supabase
 from database import (
     get_accounts, add_account,
     get_categories, add_category, get_or_create_category,
@@ -13,9 +14,45 @@ from database import (
     get_goals, add_goal
 )
 
-st.set_page_config(page_title="MoccaMonies", layout="wide")
+# Configurações da página
+st.set_page_config(page_title="Finanças Casa", layout="wide")
 
-st.title("MoccaMonies")
+# --- Funções de Autenticação ---
+def login():
+    st.title("🔐 Login")
+    email = st.text_input("Email")
+    senha = st.text_input("Senha", type="password")
+    if st.button("Entrar"):
+        result = supabase.auth.sign_in({'email': email, 'password': senha})
+        if result.user:
+            st.session_state.user = result.user
+            st.session_state.access_token = result.session.access_token
+            st.experimental_rerun()
+        else:
+            st.error("Falha na autenticação: {}".format(result.error.message if result.error else "Desconhecido"))
+    return False
+
+
+def logout():
+    supabase.auth.sign_out()
+    for k in ['user', 'access_token']:
+        st.session_state.pop(k, None)
+    st.experimental_rerun()
+
+# Verifica sessão
+if 'access_token' in st.session_state:
+    # Ajusta o token para chamadas subsequentes
+    supabase.auth.set_auth(st.session_state.access_token)
+    # Botão de logout
+    if st.sidebar.button("Logout 🚪"):
+        logout()
+else:
+    # Solicita login
+    login()
+    st.stop()
+
+# --- Interface após login ---
+st.title("Sistema de Finanças com Supabase + Streamlit")
 menu = st.sidebar.selectbox(
     "Navegação", 
     ["Contas", "Categorias", "Lançamentos", "Dívidas", "Metas", "Importar Excel", "Relatórios", "Gráficos"]
@@ -47,13 +84,11 @@ elif menu == "Categorias":
 
 elif menu == "Lançamentos":
     st.header("Lançamentos")
-    # Tabela de lançamentos
     trans = get_transactions()
     df = pd.DataFrame(trans)
     if not df.empty and 'categorias' in df.columns:
         df['categoria'] = df['categorias'].apply(lambda x: x['nome'] if x else None)
     st.dataframe(df[['id','tipo','valor','descricao','data','categoria']])
-    
     with st.form("frm_lanc", clear_on_submit=True):
         tipo = st.selectbox("Tipo", ["Receita","Despesa"])
         valor = st.number_input("Valor", value=0.0)
@@ -101,14 +136,12 @@ elif menu == "Importar Excel":
     if st.button("Importar"):
         if file and senha:
             try:
-                # Descriptografa e lê o arquivo
                 arquivo = msoffcrypto.OfficeFile(file)
                 arquivo.load_key(password=senha)
                 buf = BytesIO()
                 arquivo.decrypt(buf)
                 buf.seek(0)
                 df = pd.read_excel(buf, skiprows=1)
-                # Processar colunas similares ao importar_c6bank
                 df.columns = df.columns.str.strip().str.replace(r'\n',' ',regex=True)
                 col_val = [c for c in df.columns if "Valor" in c and "(em R$)" in c]
                 if not col_val:
