@@ -35,12 +35,12 @@ def login():
             session = data.get("session", {})
             st.session_state.access_token = session.get("access_token")
             st.session_state.user = data.get("user")
-            st.experimental_rerun()
+            st.rerun()
 
 def logout():
     supabase.auth.sign_out()
     st.session_state.clear()
-    st.experimental_rerun()
+    st.rerun()
 
 # Verifica sessão
 if "access_token" in st.session_state:
@@ -68,7 +68,7 @@ if menu == "Contas":
         if st.form_submit_button("Adicionar conta"):
             add_account(nome, saldo)
             st.success("Conta adicionada com sucesso!")
-            st.experimental_rerun()
+            st.rerun()
 
 elif menu == "Categorias":
     st.header("Categorias")
@@ -80,7 +80,7 @@ elif menu == "Categorias":
         if st.form_submit_button("Adicionar categoria"):
             add_category(nome, tipo)
             st.success("Categoria adicionada com sucesso!")
-            st.experimental_rerun()
+            st.rerun()
 
 elif menu == "Lançamentos":
     st.header("Lançamentos")
@@ -100,7 +100,7 @@ elif menu == "Lançamentos":
         if st.form_submit_button("Adicionar lançamento"):
             add_transaction(tipo, valor, descricao, data, opt[cat_sel])
             st.success("Lançamento adicionado com sucesso!")
-            st.experimental_rerun()
+            st.rerun()
 
 elif menu == "Dívidas":
     st.header("Dívidas")
@@ -114,7 +114,7 @@ elif menu == "Dívidas":
         if st.form_submit_button("Adicionar dívida"):
             add_debt(nome, valor, data_v, juros)
             st.success("Dívida adicionada com sucesso!")
-            st.experimental_rerun()
+            st.rerun()
 
 elif menu == "Metas":
     st.header("Metas")
@@ -127,7 +127,7 @@ elif menu == "Metas":
         if st.form_submit_button("Adicionar meta"):
             add_goal(nome, valor, data_l)
             st.success("Meta adicionada com sucesso!")
-            st.experimental_rerun()
+            st.rerun()
 
 elif menu == "Importar Excel":
     st.header("Importar Excel C6Bank")
@@ -162,7 +162,7 @@ elif menu == "Importar Excel":
                         cat_id = get_or_create_category(row['CategoriaName'])
                         add_transaction(row['Tipo'], row[col_val], row['Descrição'], row['Data'], cat_id)
                     st.success("Importação concluída com sucesso!")
-                    st.experimental_rerun()
+                    st.rerun()
             except Exception as e:
                 st.error(f"Erro ao importar: {e}")
         else:
