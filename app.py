@@ -100,18 +100,17 @@ elif menu == "Lançamentos":
     trans = get_transactions()
     df = pd.DataFrame(trans)
     if not df.empty:
-        if not df.empty:
-    # categoria
-    df['categoria'] = df['categorias'].apply(lambda x: x.get('nome') if isinstance(x, dict) else None)
-    # tipo de categoria (Receita/Despesa)
-    df['tipo_categoria'] = df['categorias'].apply(lambda x: x.get('tipo') if isinstance(x, dict) else None)
-    # conta
-    df['conta'] = df['contas'].apply(lambda x: x.get('conta_nome') if isinstance(x, dict) else None)
+        # categoria
+        df['categoria'] = df['categorias'].apply(lambda x: x.get('nome') if isinstance(x, dict) else None)
+        # tipo de categoria (Receita/Despesa)
+        df['tipo_categoria'] = df['categorias'].apply(lambda x: x.get('tipo') if isinstance(x, dict) else None)
+        # conta
+        df['conta'] = df['contas'].apply(lambda x: x.get('conta_nome') if isinstance(x, dict) else None)
 
-    st.dataframe(df[[
-        'id', 'valor', 'descricao', 'data', 'categoria',
-        'tipo_categoria', 'conta', 'user_id', 'criado_em'
-    ]])
+        st.dataframe(df[[
+            'id', 'valor', 'descricao', 'data', 'categoria',
+            'tipo_categoria', 'conta', 'user_id', 'criado_em'
+        ]])
 
     with st.form("frm_lanc", clear_on_submit=True):
         valor = st.number_input("Valor", value=0.0)
