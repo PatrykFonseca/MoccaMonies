@@ -105,7 +105,7 @@ elif menu == "Lançamentos":
         # tipo de categoria (Receita/Despesa)
         df['tipo_categoria'] = df['categorias'].apply(lambda x: x.get('tipo') if isinstance(x, dict) else None)
         # conta
-        df['conta'] = df['contas'].apply(lambda x: x.get('conta_nome') if isinstance(x, dict) else None)
+        df['conta'] = df['contas'].apply(lambda x: x.get('nome') if isinstance(x, dict) else None)
 
         st.dataframe(df[[
             'id', 'valor', 'descricao', 'data', 'categoria',
