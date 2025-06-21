@@ -44,7 +44,7 @@ def add_transaction(tipo: str, valor: float, descricao: str, data: str, categori
     return resp.data
 
 def get_transactions():
-    r = supabase.table("lancamentos").select("*, categorias(nome)").order("data", desc=True).execute()
+    r = supabase.table("lancamentos").select("*, categorias(nome),contas(nome)").order("data", desc=True).execute()
     # Supabase retorna relacionamentos em 'categorias'
     return r.data
 
